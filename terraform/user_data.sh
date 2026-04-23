@@ -179,8 +179,8 @@ EXPOSE 8000 8501
 CMD ["./entrypoint.sh"]
 EOF
 
-# 4. Build and Run
+# 4. Build and run the container with auto-restart
 docker build -t ml-app .
-docker run -d --name ml-app-container -p 8000:8000 -p 8501:8501 ml-app
+docker run -d --name ml-app-container --restart always -p 8000:8000 -p 8501:8501 ml-app
 
 echo "Setup complete. App is running."
