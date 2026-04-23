@@ -74,13 +74,20 @@ resource "aws_route_table_association" "private_assoc" {
 
 # 3. Security Groups
 resource "aws_security_group" "alb_sg" {
-  name        = "ai-alb-sg"
+  name        = "ml-alb-sg"
   description = "Allow HTTP inbound to ALB"
   vpc_id      = aws_vpc.ai_vpc.id
 
   ingress {
     from_port   = 80
     to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 8000
+    to_port     = 8000
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -94,7 +101,7 @@ resource "aws_security_group" "alb_sg" {
 }
 
 resource "aws_security_group" "bastion_sg" {
-  name        = "ai-bastion-sg"
+  name        = "ml-bastion-sg"
   description = "Allow SSH inbound to Bastion"
   vpc_id      = aws_vpc.ai_vpc.id
 
@@ -112,9 +119,9 @@ resource "aws_security_group" "bastion_sg" {
   }
 }
 
-resource "aws_security_group" "gpu_sg" {
-  name        = "ai-gpu-node-sg"
-  description = "Allow SSH from Bastion and HTTP from ALB"
+resource "aws_security_group" "ml_sg" {
+  name        = "ml-node-sg"
+  description = "Allow SSH from Bastion and App ports from ALB"
   vpc_id      = aws_vpc.ai_vpc.id
 
   ingress {
@@ -131,6 +138,13 @@ resource "aws_security_group" "gpu_sg" {
     security_groups = [aws_security_group.alb_sg.id]
   }
 
+  ingress {
+    from_port       = 8501
+    to_port         = 8501
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb_sg.id]
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -141,7 +155,7 @@ resource "aws_security_group" "gpu_sg" {
 
 # 4. Key Pair & Bastion
 resource "aws_key_pair" "lab_key" {
-  key_name   = "ai-lab-key-${random_id.id.hex}"
+  key_name   = "ml-lab-key-${random_id.id.hex}"
   public_key = file("${path.module}/lab-key.pub")
 }
 
@@ -169,21 +183,12 @@ resource "aws_instance" "bastion" {
   vpc_security_group_ids      = [aws_security_group.bastion_sg.id]
   key_name                    = aws_key_pair.lab_key.key_name
   associate_public_ip_address = true
-  tags = { Name = "AI-Bastion-Host" }
+  tags = { Name = "ML-Bastion-Host" }
 }
 
-# 5. GPU Instance
-data "aws_ami" "deep_learning" {
-  most_recent = true
-  owners      = ["amazon"]
-  filter {
-    name   = "name"
-    values = ["Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04)*"]
-  }
-}
-
+# 5. ML Instance
 resource "aws_iam_role" "ai_role" {
-  name = "ai-inference-role-${random_id.id.hex}"
+  name = "ml-node-role-${random_id.id.hex}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -200,42 +205,58 @@ resource "aws_iam_role" "ai_role" {
 }
 
 resource "aws_iam_instance_profile" "ai_profile" {
-  name = "ai-inference-profile-${random_id.id.hex}"
+  name = "ml-node-profile-${random_id.id.hex}"
   role = aws_iam_role.ai_role.name
 }
 
-resource "aws_instance" "gpu_node" {
-  ami                    = data.aws_ami.deep_learning.id
-  instance_type          = "g4dn.xlarge" 
+resource "aws_instance" "ml_node" {
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = "t3.medium" 
   subnet_id              = aws_subnet.private[0].id
-  vpc_security_group_ids = [aws_security_group.gpu_sg.id]
+  vpc_security_group_ids = [aws_security_group.ml_sg.id]
   key_name               = aws_key_pair.lab_key.key_name
   iam_instance_profile   = aws_iam_instance_profile.ai_profile.name
 
   root_block_device {
-    volume_size = 150 
+    volume_size = 30 
     volume_type = "gp3"
   }
 
-  user_data = templatefile("${path.module}/user_data.sh", {
-    hf_token = var.hf_token
-    model_id = var.model_id
-  })
+  user_data = file("${path.module}/user_data.sh")
 
-  tags = { Name = "AI-Inference-Node" }
+  tags = { Name = "ML-App-Node" }
 }
 
 # 6. Load Balancer
-resource "aws_lb" "ai_alb" {
-  name               = "ai-inference-alb-${random_id.id.hex}"
+resource "aws_lb" "ml_alb" {
+  name               = "ml-app-alb-${random_id.id.hex}"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb_sg.id]
   subnets            = [for subnet in aws_subnet.public : subnet.id]
 }
 
-resource "aws_lb_target_group" "ai_tg" {
-  name     = "ai-inference-tg-${random_id.id.hex}"
+# Target Group for UI (Port 8501)
+resource "aws_lb_target_group" "ui_tg" {
+  name     = "ui-tg-${random_id.id.hex}"
+  port     = 8501
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.ai_vpc.id
+
+  health_check {
+    path                = "/"
+    protocol            = "HTTP"
+    matcher             = "200"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+  }
+}
+
+# Target Group for API (Port 8000)
+resource "aws_lb_target_group" "api_tg" {
+  name     = "api-tg-${random_id.id.hex}"
   port     = 8000
   protocol = "HTTP"
   vpc_id   = aws_vpc.ai_vpc.id
@@ -251,19 +272,38 @@ resource "aws_lb_target_group" "ai_tg" {
   }
 }
 
-resource "aws_lb_listener" "ai_listener" {
-  load_balancer_arn = aws_lb.ai_alb.arn
+# Listener for Port 80 -> UI
+resource "aws_lb_listener" "ui_listener" {
+  load_balancer_arn = aws_lb.ml_alb.arn
   port              = "80"
   protocol          = "HTTP"
 
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.ai_tg.arn
+    target_group_arn = aws_lb_target_group.ui_tg.arn
   }
 }
 
-resource "aws_lb_target_group_attachment" "ai_tg_attach" {
-  target_group_arn = aws_lb_target_group.ai_tg.arn
-  target_id        = aws_instance.gpu_node.id
+# Listener for Port 8000 -> API
+resource "aws_lb_listener" "api_listener" {
+  load_balancer_arn = aws_lb.ml_alb.arn
+  port              = "8000"
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.api_tg.arn
+  }
+}
+
+resource "aws_lb_target_group_attachment" "ui_attach" {
+  target_group_arn = aws_lb_target_group.ui_tg.arn
+  target_id        = aws_instance.ml_node.id
+  port             = 8501
+}
+
+resource "aws_lb_target_group_attachment" "api_attach" {
+  target_group_arn = aws_lb_target_group.api_tg.arn
+  target_id        = aws_instance.ml_node.id
   port             = 8000
 }

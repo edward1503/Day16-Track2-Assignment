@@ -1,2 +1,10 @@
 numpy
+fastapi
+uvicorn
+streamlit
+joblib
 scikit-learn
+pandas
+psutil
+prometheus-fastapi-instrumentator
+requests

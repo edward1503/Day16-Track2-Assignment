@@ -2,15 +2,21 @@ output "bastion_public_ip" {
   value = aws_instance.bastion.public_ip
 }
 
-output "alb_dns_name" {
-  value = aws_lb.ai_alb.dns_name
-  description = "The DNS name of the ALB to access the inference endpoint"
+output "ml_alb_dns_name" {
+  value = aws_lb.ml_alb.dns_name
+  description = "The DNS name of the ALB"
 }
 
-output "endpoint_url" {
-  value = "http://${aws_lb.ai_alb.dns_name}/v1/completions"
+output "ui_url" {
+  value = "http://${aws_lb.ml_alb.dns_name}"
+  description = "URL for the Streamlit UI"
 }
 
-output "gpu_private_ip" {
-  value = aws_instance.gpu_node.private_ip
+output "api_url" {
+  value = "http://${aws_lb.ml_alb.dns_name}:8000"
+  description = "URL for the FastAPI API"
+}
+
+output "ml_node_private_ip" {
+  value = aws_instance.ml_node.private_ip
 }
