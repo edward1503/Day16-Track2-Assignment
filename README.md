@@ -1,14 +1,32 @@
-# 🚀 Hướng dẫn Triển khai Hệ thống ML Đơn giản trên AWS (Simplified Lab 16)
+# 🚀 Báo cáo Lab 16: Triển khai Hệ thống ML Đơn giản trên AWS
 
-Tài liệu này hướng dẫn bạn cách triển khai một ứng dụng Machine Learning (Iris Classifier) hoàn chỉnh trên AWS bằng Terraform. Hệ thống bao gồm:
-- **FastAPI**: Cung cấp API dự đoán và Monitoring metrics.
-- **Streamlit**: Giao diện người dùng (UI) để tương tác và xem biểu đồ giám sát.
-- **Docker**: Đóng gói toàn bộ ứng dụng.
-- **AWS Infrastructure**: VPC Private, NAT Gateway, Application Load Balancer (ALB), và EC2 Node.
+**Họ và tên:** Nguyễn Đôn Đức
+**Mã học viên:** 2A202600145
+**Lớp:** Track 2 E403
 
 ---
 
-## 1. Kiến trúc Hệ thống (Architecture)
+## 🟢 PHẦN 1: TÓM TẮT BÁO CÁO KẾT QUẢ
+
+### 1.1. Mục tiêu đạt được
+Trong bài thực hành này, tôi đã thành công trong việc triển khai một hệ thống Machine Learning hoàn chỉnh trên môi trường Cloud AWS. Các mục tiêu cốt lõi đã hoàn thành bao gồm:
+- **Hạ tầng tự động (IaC):** Sử dụng Terraform để khởi tạo VPC, Subnet, ALB và EC2 một cách nhất quán.
+- **Phát triển Ứng dụng:** Xây dựng thành công bộ đôi FastAPI (Backend) và Streamlit (Frontend) để phục vụ dự đoán loài hoa Iris.
+- **Tối ưu hóa chi phí:** Chuyển đổi kiến trúc từ GPU sang CPU (`t3.micro`) để tận dụng Free Tier nhưng vẫn đảm bảo hiệu năng.
+- **Giám sát toàn diện:** Tích hợp thành công các chỉ số đo lường từ mức Model (Accuracy, F1) đến mức hạ tầng (CloudWatch).
+
+### 1.2. Kết quả thực hiện
+- Hệ thống chạy ổn định trong mạng riêng (Private Subnet).
+- Giao diện Streamlit hiển thị trực quan các thông số huấn luyện và biểu đồ độ trễ dự đoán.
+- API phản hồi nhanh chóng với độ trễ thấp (< 10ms cho phần inference).
+
+![Giao diện Streamlit Dashboard](screenshots/Giao diện.png)
+
+---
+
+## 🔵 PHẦN 2: CHI TIẾT KIẾN TRÚC & TRIỂN KHAI
+
+## 2.1. Kiến trúc Hệ thống (Architecture)
 
 Hệ thống được thiết kế theo mô hình chuẩn bảo mật trên AWS với VPC phân tầng. Ứng dụng chạy trong mạng riêng (Private Subnet) và chỉ có thể truy cập được thông qua Load Balancer.
 
@@ -45,116 +63,70 @@ graph TD
 ```
 
 ### Các thành phần chính:
-- **VPC & Networking**: Chia làm 2 lớp Public và Private. Các tài nguyên tính toán (EC2 t3.micro) nằm trong Private Subnet để đảm bảo an toàn.
-- **ALB (Application Load Balancer)**: Đóng vai trò là cửa ngõ tiếp nhận request và phân phối vào ứng dụng.
-- **NAT Gateway**: Cho phép máy chủ trong Private Subnet kết nối ra Internet để tải thư viện nhưng không cho phép chiều ngược lại.
-- **Docker Container**: Đóng gói và chạy đồng thời quy trình Huấn luyện, API và UI.
+- **VPC & Networking:** Chia làm 2 lớp Public và Private. Các tài nguyên tính toán (EC2 t3.micro) nằm trong Private Subnet để đảm bảo an toàn.
+- **ALB (Application Load Balancer):** Đóng vai trò là cửa ngõ tiếp nhận request và phân phối vào ứng dụng.
+- **NAT Gateway:** Cho phép máy chủ trong Private Subnet kết nối ra Internet để tải thư viện.
+- **Docker Container:** Đóng gói và chạy đồng thời quy trình Huấn luyện, API và UI.
 
 ---
 
-## 2. Các thành phần Metrics được tích hợp
-Hệ thống không chỉ dự đoán mà còn cung cấp các chỉ số quan trọng:
-- **Model Metrics**: Accuracy, Precision, Recall, F1-Score (tính toán sau khi Training).
-- **System Metrics**: CPU & Memory usage trong quá trình Training.
-- **Inference Metrics**: Độ trễ (Latency) theo thời gian thực và biểu đồ lịch sử dự đoán trên giao diện Streamlit.
-- **Prometheus Metrics**: Sẵn sàng cho việc giám sát chuyên sâu qua endpoint `/metrics` của API.
+## 2.2. Các thành phần Metrics được tích hợp
+Hệ thống cung cấp các chỉ số quan trọng phục vụ quan sát:
+- **Model Metrics:** Accuracy, Precision, Recall, F1-Score (tính toán sau khi Training).
+- **System Metrics:** CPU & Memory usage trong quá trình Training.
+- **Inference Metrics:** Độ trễ (Latency) theo thời gian thực hiển thị trên Streamlit.
+- **Prometheus Metrics:** Endpoint `/metrics` sẵn sàng cho giám sát tập trung.
 
 ---
 
-## 3. Các bước triển khai
+## 2.3. Các bước triển khai (Deployment Steps)
 
-### Bước 2.1: Chuẩn bị môi trường Local
-Đảm bảo bạn đã cài đặt:
-- **AWS CLI** (đã cấu hình `aws configure`)
-- **Terraform**
+### Bước 1: Chuẩn bị môi trường Local
+Đảm bảo đã cài đặt AWS CLI và Terraform.
 
-### Bước 2.2: Khởi tạo Hạ tầng
-Di chuyển vào thư mục `terraform` và thực hiện:
-
+### Bước 2: Khởi tạo Hạ tầng
 ```bash
 cd terraform
-# Khởi tạo terraform
 terraform init
-
-# Kiểm tra tính hợp lệ
 terraform validate
-
-# Triển khai (mất khoảng 10-12 phút chủ yếu do NAT Gateway)
 terraform apply -auto-approve
 ```
 
-### Bước 2.3: Truy cập Ứng dụng
-Sau khi `terraform apply` thành công, bạn sẽ nhận được các Outputs quan trọng:
-- `ui_url`: Truy cập vào đây bằng trình duyệt để sử dụng giao diện Streamlit.
-- `api_url`: Endpoint của FastAPI (dùng để test curl hoặc tích hợp hệ thống khác).
-
-**Lưu ý:** Sau khi Terraform báo thành công, EC2 Node cần thêm khoảng 2-3 phút để cài đặt Docker, Build image và chạy Training lần đầu tiên. Hãy kiên nhẫn đợi một chút nếu chưa truy cập được ngay.
+### Bước 3: Truy cập Ứng dụng
+- `ui_url`: Truy cập giao diện Streamlit (Port 80).
+- `api_url`: Endpoint FastAPI (Port 8000).
 
 ---
 
-## 4. Hướng dẫn Giám sát (Detailed Monitoring)
+## 2.4. Hướng dẫn Giám sát & Kiểm tra
 
-Hệ thống được thiết kế để giám sát đa lớp:
-
-### 4.1. Giám sát trên Giao diện Streamlit (Application Level)
-- **Training Metrics**: Xem kết quả huấn luyện mô hình (Accuracy, F1...) và tài nguyên hệ thống (CPU/RAM) tiêu thụ lúc huấn luyện ngay tại thanh bên trái.
-- **Inference Metrics**: Biểu đồ Latency sẽ cập nhật ngay lập tức mỗi khi bạn thực hiện một dự đoán mới.
-
-### 4.2. Kiểm tra qua API (cURL)
-Bạn có thể dùng lệnh cURL một dòng sau để kiểm tra nhanh (thay `<ALB_DNS_NAME>` bằng giá trị từ output):
-
+### Kiểm tra qua API (cURL)
 **Dành cho CMD / Bash:**
 ```bash
 curl -X POST http://<ALB_DNS_NAME>:8000/predict -H "Content-Type: application/json" -d "{\"sepal_length\": 5.1, \"sepal_width\": 3.5, \"petal_length\": 1.4, \"petal_width\": 0.2}"
 ```
 
-**Dành cho PowerShell:**
-```powershell
-curl.exe -X POST http://<ALB_DNS_NAME>:8000/predict -H "Content-Type: application/json" -d '{\"sepal_length\": 5.1, \"sepal_width\": 3.5, \"petal_length\": 1.4, \"petal_width\": 0.2}'
-```
+![Kết quả lệnh cURL](screenshots/CURL.png)
 
-- Ngoài ra, truy cập `<api_url>/metrics` để xem dữ liệu thô định dạng Prometheus.
+![Dữ liệu Prometheus Metrics](screenshots/Prometheus Metrics.png)
 
-### 4.3. Giám sát trên AWS CloudWatch (Infrastructure Level)
-Để xem các chỉ số hạ tầng, bạn hãy truy cập [CloudWatch Console](https://console.aws.amazon.com/cloudwatch/):
-- **ALB Metrics**: Vào mục **Metrics** -> **All Metrics** -> **ApplicationELB**. Tại đây bạn có thể theo dõi:
-    - `RequestCount`: Số lượng request đến hệ thống.
-    - `TargetResponseTime`: Thời gian phản hồi của ứng dụng.
-    - `HTTPCode_Target_2XX_Count`: Số lượng request thành công.
-- **EC2 Metrics**: Vào mục **Metrics** -> **All Metrics** -> **EC2**. Theo dõi:
-    - `CPUUtilization`: Phần trăm CPU của máy chủ.
-    - `NetworkIn / NetworkOut`: Lưu lượng mạng.
+### Giám sát trên AWS CloudWatch
+- Theo dõi `TargetResponseTime` của ALB.
+- Theo dõi `CPUUtilization` của EC2.
+
+![Giám sát hạ tầng trên AWS CloudWatch](screenshots/EC2 metrics.png)
 
 ---
 
-## 5. Kiểm tra Log & Troubleshooting
-
-Nếu gặp lỗi (như 502 Bad Gateway hoặc không thấy metrics), bạn có thể kiểm tra log như sau:
-
-1. **User-data Log (Quá trình cài đặt)**:
-   Xem nhật ký quá trình cài Docker và chạy ứng dụng lần đầu:
-   ```bash
-   # Truy cập vào máy qua SSH (thông qua Bastion)
-   tail -f /var/log/user-data.log
-   ```
-
-2. **Docker Logs (Quá trình chạy App)**:
-   Xem log của container đang chạy (FastAPI & Streamlit logs):
-   ```bash
-   docker logs -f ml-app-container
-   ```
-
-3. **ALB Health Checks**:
-   Vào EC2 Console -> **Target Groups** -> Chọn TG của bạn -> **Targets**. Kiểm tra cột **Health status**. Nếu là `Unhealthy`, hãy xem mô tả lỗi ngay tại đó.
+## 2.5. Kiểm tra Log & Troubleshooting
+- **Cài đặt:** `tail -f /var/log/user-data.log` (trên máy ML Node).
+- **Ứng dụng:** `docker logs -f ml-app-container`.
 
 ---
 
-## 6. Dọn dẹp tài nguyên (CỰC KỲ QUAN TRỌNG)
-Để tránh phát sinh chi phí không đáng có (đặc biệt là NAT Gateway và ALB), bạn **BẮT BUỘC** phải xóa tài nguyên sau khi kết thúc:
-
+## 2.6. Dọn dẹp tài nguyên
 ```bash
 terraform destroy -auto-approve
 ```
 
 ---
-*Chúc bạn có buổi thực hành thành công!*
