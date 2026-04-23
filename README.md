@@ -25,7 +25,7 @@ graph TD
         end
         
         subgraph Private_Subnet [Private Subnets]
-            subgraph ML_Node [EC2: ML-App-Node - t3.medium]
+            subgraph ML_Node [EC2: ML-App-Node - t3.micro]
                 subgraph Docker_Container [Docker: ml-app]
                     Train[1. Training Job] -->|Lưu| Model[(model.joblib)]
                     Train -->|Lưu| Metrics[metrics.json]
@@ -45,7 +45,7 @@ graph TD
 ```
 
 ### Các thành phần chính:
-- **VPC & Networking**: Chia làm 2 lớp Public và Private. Các tài nguyên tính toán (EC2) nằm trong Private Subnet để đảm bảo an toàn.
+- **VPC & Networking**: Chia làm 2 lớp Public và Private. Các tài nguyên tính toán (EC2 t3.micro) nằm trong Private Subnet để đảm bảo an toàn.
 - **ALB (Application Load Balancer)**: Đóng vai trò là cửa ngõ tiếp nhận request và phân phối vào ứng dụng.
 - **NAT Gateway**: Cho phép máy chủ trong Private Subnet kết nối ra Internet để tải thư viện nhưng không cho phép chiều ngược lại.
 - **Docker Container**: Đóng gói và chạy đồng thời quy trình Huấn luyện, API và UI.
@@ -92,25 +92,55 @@ Sau khi `terraform apply` thành công, bạn sẽ nhận được các Outputs 
 
 ---
 
-## 4. Kiểm tra Monitoring & Prediction
+---
 
-1. **Giao diện Streamlit (`ui_url`)**:
-   - Bên thanh trái (Sidebar) hiển thị kết quả Training (Accuracy, CPU, RAM...).
-   - Phần chính giữa cho phép bạn kéo thanh trượt để dự đoán loài hoa Iris.
-   - Biểu đồ **Real-time Monitoring** sẽ hiển thị độ trễ của các lần dự đoán.
+## 4. Hướng dẫn Giám sát (Detailed Monitoring)
 
-2. **Kiểm tra API (`api_url`)**:
-   - Thử gọi API bằng cURL:
-   ```bash
-   curl -X POST <YOUR_API_URL>/predict \
-     -H "Content-Type: application/json" \
-     -d '{"sepal_length": 5.1, "sepal_width": 3.5, "petal_length": 1.4, "petal_width": 0.2}'
-   ```
-   - Xem metrics hệ thống: `<YOUR_API_URL>/metrics`
+Hệ thống được thiết kế để giám sát đa lớp:
+
+### 4.1. Giám sát trên Giao diện Streamlit (Application Level)
+- **Training Metrics**: Xem kết quả huấn luyện mô hình (Accuracy, F1...) và tài nguyên hệ thống (CPU/RAM) tiêu thụ lúc huấn luyện ngay tại thanh bên trái.
+- **Inference Metrics**: Biểu đồ Latency sẽ cập nhật ngay lập tức mỗi khi bạn thực hiện một dự đoán mới.
+
+### 4.2. Giám sát API Metrics (Prometheus Level)
+- Truy cập vào đường dẫn `<api_url>/metrics` để xem dữ liệu thô.
+- Đây là định dạng chuẩn của Prometheus, cho phép tích hợp với các hệ thống giám sát tập trung sau này.
+
+### 4.3. Giám sát trên AWS CloudWatch (Infrastructure Level)
+Để xem các chỉ số hạ tầng, bạn hãy truy cập [CloudWatch Console](https://console.aws.amazon.com/cloudwatch/):
+- **ALB Metrics**: Vào mục **Metrics** -> **All Metrics** -> **ApplicationELB**. Tại đây bạn có thể theo dõi:
+    - `RequestCount`: Số lượng request đến hệ thống.
+    - `TargetResponseTime`: Thời gian phản hồi của ứng dụng.
+    - `HTTPCode_Target_2XX_Count`: Số lượng request thành công.
+- **EC2 Metrics**: Vào mục **Metrics** -> **All Metrics** -> **EC2**. Theo dõi:
+    - `CPUUtilization`: Phần trăm CPU của máy chủ.
+    - `NetworkIn / NetworkOut`: Lưu lượng mạng.
 
 ---
 
-## 5. Dọn dẹp tài nguyên (CỰC KỲ QUAN TRỌNG)
+## 5. Kiểm tra Log & Troubleshooting
+
+Nếu gặp lỗi (như 502 Bad Gateway hoặc không thấy metrics), bạn có thể kiểm tra log như sau:
+
+1. **User-data Log (Quá trình cài đặt)**:
+   Xem nhật ký quá trình cài Docker và chạy ứng dụng lần đầu:
+   ```bash
+   # Truy cập vào máy qua SSH (thông qua Bastion)
+   tail -f /var/log/user-data.log
+   ```
+
+2. **Docker Logs (Quá trình chạy App)**:
+   Xem log của container đang chạy (FastAPI & Streamlit logs):
+   ```bash
+   docker logs -f ml-app-container
+   ```
+
+3. **ALB Health Checks**:
+   Vào EC2 Console -> **Target Groups** -> Chọn TG của bạn -> **Targets**. Kiểm tra cột **Health status**. Nếu là `Unhealthy`, hãy xem mô tả lỗi ngay tại đó.
+
+---
+
+## 6. Dọn dẹp tài nguyên (CỰC KỲ QUAN TRỌNG)
 Để tránh phát sinh chi phí không đáng có (đặc biệt là NAT Gateway và ALB), bạn **BẮT BUỘC** phải xóa tài nguyên sau khi kết thúc:
 
 ```bash
