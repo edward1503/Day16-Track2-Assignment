@@ -92,8 +92,6 @@ Sau khi `terraform apply` thành công, bạn sẽ nhận được các Outputs 
 
 ---
 
----
-
 ## 4. Hướng dẫn Giám sát (Detailed Monitoring)
 
 Hệ thống được thiết kế để giám sát đa lớp:
@@ -102,9 +100,20 @@ Hệ thống được thiết kế để giám sát đa lớp:
 - **Training Metrics**: Xem kết quả huấn luyện mô hình (Accuracy, F1...) và tài nguyên hệ thống (CPU/RAM) tiêu thụ lúc huấn luyện ngay tại thanh bên trái.
 - **Inference Metrics**: Biểu đồ Latency sẽ cập nhật ngay lập tức mỗi khi bạn thực hiện một dự đoán mới.
 
-### 4.2. Giám sát API Metrics (Prometheus Level)
-- Truy cập vào đường dẫn `<api_url>/metrics` để xem dữ liệu thô.
-- Đây là định dạng chuẩn của Prometheus, cho phép tích hợp với các hệ thống giám sát tập trung sau này.
+### 4.2. Kiểm tra qua API (cURL)
+Bạn có thể dùng lệnh cURL một dòng sau để kiểm tra nhanh (thay `<ALB_DNS_NAME>` bằng giá trị từ output):
+
+**Dành cho CMD / Bash:**
+```bash
+curl -X POST http://<ALB_DNS_NAME>:8000/predict -H "Content-Type: application/json" -d "{\"sepal_length\": 5.1, \"sepal_width\": 3.5, \"petal_length\": 1.4, \"petal_width\": 0.2}"
+```
+
+**Dành cho PowerShell:**
+```powershell
+curl.exe -X POST http://<ALB_DNS_NAME>:8000/predict -H "Content-Type: application/json" -d '{\"sepal_length\": 5.1, \"sepal_width\": 3.5, \"petal_length\": 1.4, \"petal_width\": 0.2}'
+```
+
+- Ngoài ra, truy cập `<api_url>/metrics` để xem dữ liệu thô định dạng Prometheus.
 
 ### 4.3. Giám sát trên AWS CloudWatch (Infrastructure Level)
 Để xem các chỉ số hạ tầng, bạn hãy truy cập [CloudWatch Console](https://console.aws.amazon.com/cloudwatch/):
