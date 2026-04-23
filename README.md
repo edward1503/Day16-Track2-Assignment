@@ -108,13 +108,13 @@ curl -X POST http://<ALB_DNS_NAME>:8000/predict -H "Content-Type: application/js
 
 ![Kết quả lệnh cURL](screenshots/CURL.png)
 
-![Dữ liệu Prometheus Metrics](screenshots/Prometheus Metrics.png)
+![Dữ liệu Prometheus Metrics](screenshots/PrometheusMetrics.png)
 
 ### Giám sát trên AWS CloudWatch
 - Theo dõi `TargetResponseTime` của ALB.
 - Theo dõi `CPUUtilization` của EC2.
 
-![Giám sát hạ tầng trên AWS CloudWatch](screenshots/EC2 metrics.png)
+![Giám sát hạ tầng trên AWS CloudWatch](screenshots/EC2_metrics.png)
 
 ---
 
