@@ -1,10 +1,10 @@
+lightgbm
+scikit-learn
+pandas
 numpy
 fastapi
 uvicorn
 streamlit
+plotly
 joblib
-scikit-learn
-pandas
-psutil
-prometheus-fastapi-instrumentator
 requests

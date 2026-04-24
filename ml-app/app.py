@@ -1,67 +1,46 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from fastapi import FastAPI
 import joblib
-import numpy as np
+import pandas as pd
 import time
+import numpy as np
+from pydantic import BaseModel
+from typing import List
 import os
-from prometheus_fastapi_instrumentator import Instrumentator
 
-app = FastAPI(title="Iris ML API")
+app = FastAPI()
+MODEL_PATH = 'models/lgb_model.joblib'
 
-# Setup Prometheus monitoring
-Instrumentator().instrument(app).expose(app)
-
-# Load model
-MODEL_PATH = "models/model.joblib"
+# Delay loading to allow benchmark to finish in user_data
+model = None
 if os.path.exists(MODEL_PATH):
     model = joblib.load(MODEL_PATH)
-else:
-    model = None
-    print(f"Warning: Model not found at {MODEL_PATH}")
-
-class IrisInput(BaseModel):
-    sepal_length: float
-    sepal_width: float
-    petal_length: float
-    petal_width: float
 
 class PredictionOutput(BaseModel):
-    prediction: int
-    class_name: str
+    prediction: float
     latency_ms: float
 
-class_names = ['setosa', 'versicolor', 'virginica']
-
 @app.get("/health")
-async def health():
-    if model is None:
-        return {"status": "unhealthy", "reason": "model_not_loaded"}
-    return {"status": "healthy"}
+def health():
+    return {"status": "ok" if model else "model_not_loaded"}
 
 @app.post("/predict", response_model=PredictionOutput)
-async def predict(data: IrisInput):
-    if model is None:
-        raise HTTPException(status_code=503, detail="Model not loaded")
-    
-    start_time = time.time()
-    
-    features = np.array([[
-        data.sepal_length, 
-        data.sepal_width, 
-        data.petal_length, 
-        data.petal_width
-    ]])
-    
-    prediction = int(model.predict(features)[0])
-    
-    latency = (time.time() - start_time) * 1000
-    
-    return {
-        "prediction": prediction,
-        "class_name": class_names[prediction],
-        "latency_ms": latency
-    }
+def predict(data: dict):
+    if not model:
+        return {"prediction": 0.0, "latency_ms": 0.0}
+    start = time.time()
+    df = pd.DataFrame([data])
+    pred = model.predict(df)[0]
+    return {"prediction": float(pred), "latency_ms": (time.time() - start) * 1000}
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+@app.post("/predict-batch")
+def predict_batch(count: int = 1000):
+    if not model:
+        return {"status": "model_not_ready"}
+    # Load some data for testing
+    if not os.path.exists('creditcard.csv'):
+        return {"status": "data_not_found"}
+    df_test = pd.read_csv('creditcard.csv', nrows=count).drop('Class', axis=1)
+    start = time.time()
+    preds = model.predict(df_test)
+    latency = (time.time() - start) * 1000
+    return {"count": count, "latency_ms": latency, "avg_per_row_ms": latency/count}
