@@ -9,7 +9,7 @@ import joblib
 import os
 
 def run_benchmark():
-    print("Loading dataset (limited to 50k rows)...")
+    print("Loading dataset (limited to 50k rows for light deployment)...")
     start_load = time.time()
     if not os.path.exists('creditcard.csv'):
         print("Error: creditcard.csv not found. Please run kaggle download first.")

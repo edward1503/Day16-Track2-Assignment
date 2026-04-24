@@ -211,7 +211,7 @@ resource "aws_iam_instance_profile" "ai_profile" {
 
 resource "aws_instance" "ml_node" {
   ami                    = data.aws_ami.al2023.id
-  instance_type          = "t3.micro" 
+  instance_type          = "r5.2xlarge" 
   subnet_id              = aws_subnet.private[0].id
   vpc_security_group_ids = [aws_security_group.ml_sg.id]
   key_name               = aws_key_pair.lab_key.key_name
@@ -247,10 +247,10 @@ resource "aws_lb_target_group" "ui_tg" {
     path                = "/"
     protocol            = "HTTP"
     matcher             = "200"
-    interval            = 30
-    timeout             = 5
-    healthy_threshold   = 2
-    unhealthy_threshold = 2
+    interval            = 60
+    timeout             = 30
+    healthy_threshold   = 3
+    unhealthy_threshold = 5
   }
 }
 

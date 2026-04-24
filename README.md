@@ -115,7 +115,7 @@ curl -X POST http://<ALB_DNS_NAME>:8000/predict -H "Content-Type: application/js
 - Theo dõi `CPUUtilization` của EC2.
 
 ![Giám sát hạ tầng trên AWS CloudWatch](screenshots/EC2_metrics.png)
-
+![Billing](screenshots/billing.png)
 ---
 
 ## 2.5. Kiểm tra Log & Troubleshooting
